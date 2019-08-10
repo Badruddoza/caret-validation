@@ -1,0 +1,39 @@
+rm(list = ls())
+getwd()
+setwd("E:/Data")
+set.seed(123)
+library("randomForest")
+#install.packages("caTools")
+library("caTools")
+library("ggplot2")
+rdata<-read.csv("rdata.csv")
+
+#change mrfei as factor variable
+rdata$mrfei[rdata$mrfei>0]<-1
+rdata$mrfei <- as.factor(rdata$mrfei)
+
+#split the data set
+spl<-sample.split(rdata$mrfei, SplitRatio=.7)
+Train<-subset(rdata, spl==T)
+Test<-subset(rdata, spl==F)
+
+rf<-randomForest(mrfei~., data=Train, nodesize=25, ntree=200)
+predictForest<-predict(rf,newdata=Test)
+table(Test$mrfei,predictForest)
+
+#Cross validation using caret
+library("caret")
+library("lattice")
+library("e1071")
+library("rpart")
+#create 50 complexity parameter (that controls the size of the decision trees)
+#to select the optimal tree size (lower cp=bigger tree=better fit)
+numFolds<-trainControl(method="cv", number=10)
+cpGrid<-expand.grid(.cp=seq(0.01,0.5,0.01))
+train(mrfei~.,data=Train, method="rpart", trControl=numFolds, tuneGrid=cpGrid)
+
+#The final value used is cp=0.03
+#use the value to run optimal random forests
+rf1<-rpart(mrfei~., data=Train, method="class", cp=0.03)
+predictForest1<-predict(rf1, newdata=Test, type="class")
+table(Test$mrfei, predictForest1)
