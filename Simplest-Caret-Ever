@@ -19,15 +19,16 @@ train_control <- trainControl(method = "cv", number = 10, savePredictions = "fin
 intrain <- createDataPartition(dt$y,p=0.7,list=FALSE)
 training <- dt[intrain,]
 testing <- dt[-intrain,]
+
+
 # define a grid of parameter options to try with ranger
 rf_grid <- expand.grid(mtry = c(3:10),
                        splitrule = "gini",   #or variance
                        min.node.size = c(2,4,6,8))
 rf_grid
 #rf_grid fit the model with the parameter grid
-
-x=dt[,-which(colnames(dt)=="y")]
-y=dt$y
+x=training[,-which(colnames(dt)=="y")]
+y=training$y
 rf.model <- train(x = x,y = y,
                   method = "ranger",
                   trControl = train_control,
