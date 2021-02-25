@@ -1,0 +1,89 @@
+rm(list=ls())
+require(caret)
+
+# data creation
+n<-1000; n_x<-12
+xs<-matrix(rnorm(n*n_x,0,1),nrow=n,ncol=n_x)
+beta<-rnorm(n_x,0,1)
+p<-1/(1+exp(-(xs %*% beta) ))   # remember the logistic function?
+dt<-data.frame(xs)
+dt$y<-as.factor(round(p,0))
+head(dt)
+
+ggcorrplot::ggcorrplot(round(cor( dt[,-which(colnames(dt)=="y")] ),2),"square","upper",lab=T,lab_size=3,
+           title=paste0("Correlation of Predictors"))
+
+# set up 10-fold "cross validation" procedure
+train_control <- trainControl(method = "cv", number = 10, savePredictions = "final")
+# split sample into training and testing
+intrain <- createDataPartition(dt$y,p=0.7,list=FALSE)
+training <- dt[intrain,]
+testing <- dt[-intrain,]
+
+
+# define a grid of parameter options to try with ranger
+rf_grid <- expand.grid(mtry = c(3:4),
+                       splitrule = "gini",   #or variance
+                       min.node.size = c(2,4))
+rf_grid
+#rf_grid fit the model with the parameter grid
+
+x=training[,-which(colnames(dt)=="y")]
+y=training$y
+rf.model <- train(x = x,y = y,
+                  method = "ranger",
+                  trControl = train_control,
+                  tuneGrid = rf_grid,
+                  importance= "impurity") #or impurity_corrected, or permutation for continuous y
+yhat_rf=predict(rf.model, newdata = dt)
+yhat_rf[-intrain]
+confusionMatrix(testing$y,yhat_rf[-intrain])
+
+rf.model$finalModel
+predict(rf.model)
+rf.model$finalModel$variable.importance
+ggplot(rf.model)
+
+
+
+# define a grid of parameter options to try with xgboost # reusing train_control
+xgb_grid <- expand.grid(nrounds = c(50,100), #max number of iteration
+                        max_depth = c(1,10), #max depth of a tree
+                        min_child_weight =1, #minimum sum of instance weight (hessian) needed in a child. Do not partition if weight<min_child_weight
+                        subsample = 1, #for further subsamples
+                        gamma = 0, #minimum loss reduction required to make a further partition on a leaf node of the tree, larger gamma means conservative algorithm
+                        colsample_bytree = 0.8, #subsample ratio of columns when constructing each tree
+                        eta = c(.01,.1) ) #step size of each boosting step
+#xgb_grid fit the model with the parameter grid
+xgboost.model <- train(y ~ ., 
+                       training , 
+                       method = "xgbTree", 
+                       tuneGrid = xgb_grid,
+                       trControl = train_control)
+yhat_gb=predict(xgboost.model, newdata = dt)
+confusionMatrix(testing$y,yhat_gb[-intrain])
+
+xgboost.model$finalModel
+predict(xgboost.model)
+varImp(xgboost.model)
+ggplot(xgboost.model)
+
+
+
+
+# Use the best model for Shapley values
+require(xgboost)
+require(SHAPforxgboost)
+xgb.model1<-xgboost::xgboost(data=xs,
+                             label=dt$y,
+                             gamma=xgboost.model$bestTune$gamma,
+                             eta=xgboost.model$bestTune$eta,
+                             nrounds=xgboost.model$bestTune$nrounds,
+                             verbose=FALSE)
+shap_values<-shap.values(xgb_model=xgb.model1,X_train=xs)
+shap_data <- shap_values$shap_score
+shap_data[, BIAS := shap_values$BIAS0]
+pred_mod <- predict(xgb.model1, xs, ntreelimit = 10)
+shap_data[, `:=`(rowSum = round(rowSums(shap_data),6), pred_mod = round(pred_mod,6))]
+shap_values$shap_score
+shap_values$mean_shap_score
