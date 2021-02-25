@@ -69,11 +69,10 @@ varImp(xgboost.model)
 ggplot(xgboost.model)
 
 
-
-
 # Use the best model for Shapley values
 require(xgboost)
 require(SHAPforxgboost)
+xs<-as.matrix(dt[,-dim(dt)[2]])
 xgb.model1<-xgboost::xgboost(data=xs,
                              label=dt$y,
                              gamma=xgboost.model$bestTune$gamma,
@@ -81,9 +80,8 @@ xgb.model1<-xgboost::xgboost(data=xs,
                              nrounds=xgboost.model$bestTune$nrounds,
                              verbose=FALSE)
 shap_values<-shap.values(xgb_model=xgb.model1,X_train=xs)
-shap_data <- shap_values$shap_score
-shap_data[, BIAS := shap_values$BIAS0]
-pred_mod <- predict(xgb.model1, xs, ntreelimit = 10)
-shap_data[, `:=`(rowSum = round(rowSums(shap_data),6), pred_mod = round(pred_mod,6))]
-shap_values$shap_score
 shap_values$mean_shap_score
+shap_values1<-shap_values$shap_score
+shap_values1
+shap_long<-shap.prep(xgb_model=xgb.model1, X_train = xs)
+shap.plot.summary(shap_long, scientific = TRUE)
