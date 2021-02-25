@@ -1,0 +1,11 @@
+# data creation
+n<-1000; n_x<-12
+xs<-matrix(rnorm(n*n_x,0,1),nrow=n,ncol=n_x)
+beta<-rnorm(n_x,0,1)
+p<-1/(1+exp(-(xs %*% beta) ))   # remember the logistic function?
+dt<-data.frame(xs)
+dt$y<-as.factor(round(p,0))
+head(dt)
+
+ggcorrplot::ggcorrplot(round(cor( dt[,-which(colnames(dt)=="y")] ),2),"square","upper",lab=T,lab_size=3,
+           title=paste0("Correlation of Predictors"))
